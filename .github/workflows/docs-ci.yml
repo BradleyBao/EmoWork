@@ -1,0 +1,55 @@
+name: Markdown
+
+on:
+  push:
+    paths:
+      - '*.md'
+      - '*.markdown'
+      - 'docs/**/*.md'
+      - 'docs/**/*.markdown'
+  pull_request:
+    paths:
+      - '*.md'
+      - '*.markdown'
+      - 'docs/**/*.md'
+      - 'docs/**/*.markdown'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Format Markdown
+        run: npx --yes prettier@3.6.2 --write '*.{md,markdown}' 'docs/**/*.{md,markdown}'
+
+      - name: Check formatting on pull requests
+        if: github.event_name == 'pull_request'
+        run: git diff --exit-code -- '*.md' docs/
+
+      - name: Commit formatting on push
+        if: github.event_name == 'push'
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          git add -- '*.md' docs/
+          if ! git diff --cached --quiet; then
+            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'style: format Markdown'
+            git push origin "HEAD:$BRANCH"
+          fi
+
+      - name: Check links
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: --no-progress --max-retries 2 --timeout 20 './*.md' './*.markdown' './docs/**/*.md' './docs/**/*.markdown'
+          fail: true
